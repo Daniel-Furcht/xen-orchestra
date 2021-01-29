@@ -13,6 +13,8 @@ const messages = {
   errorNoSuchItem: 'No such item',
   errorUnknownItem: 'Unknown {type}',
   memoryFree: '{memoryFree} RAM free',
+  utcDate: 'UTC date',
+  utcTime: 'UTC time',
   date: 'Date',
   notifications: 'Notifications',
   noNotifications: 'No notifications so far.',
@@ -85,6 +87,7 @@ const messages = {
   unknown: 'Unknown',
   upgradesAvailable: 'Upgrades available',
   advancedSettings: 'Advanced settings',
+  forceUpgrade: 'Force upgrade',
   txChecksumming: 'TX checksumming',
   unknownSize: 'Unknown size',
   installedCertificates: 'Installed certificates',
@@ -97,6 +100,7 @@ const messages = {
   replaceExistingCertificate: 'Replace existing certificate',
   customFields: 'Custom fields',
   addCustomField: 'Add custom field',
+  editCustomField: 'Edit custom field',
   deleteCustomField: 'Delete custom field',
 
   // ----- Modals -----
@@ -803,6 +807,7 @@ const messages = {
   poolRemoteSyslogPlaceHolder: 'Logging host',
   setpoolMaster: 'Master',
   syslogRemoteHost: 'Remote syslog host',
+  defaultMigrationNetwork: 'Default migration network',
   // ----- Pool host tab -----
   hostNameLabel: 'Name',
   hostDescription: 'Description',
@@ -841,6 +846,8 @@ const messages = {
   disconnectServer: 'Disconnect',
 
   // ----- Host actions ------
+  disableMaintenanceMode: 'Disable maintenance mode',
+  enableMaintenanceMode: 'Enable maintenance mode',
   startHostLabel: 'Start',
   stopHostLabel: 'Stop',
   enableHostLabel: 'Enable',
@@ -866,6 +873,10 @@ const messages = {
   editHostIscsiIqnMessage:
     'Are you sure you want to edit the iSCSI IQN? This may result in failures connecting to existing SRs if the host is attached to iSCSI SRs.',
   hostTitleRamUsage: 'Host RAM usage:',
+  maintenanceHostModalMessage:
+    'Are you sure you want to enter maintenance mode? This will migrate all the VMs running on this host to other hosts of the pool.',
+  maintenanceHostModalTitle: 'Maintenance mode',
+  maintenanceHostTooltip: 'Evacuate and disable the host',
   memoryHostState: 'RAM: {memoryUsed} used on {memoryTotal} ({memoryFree} free)',
   hardwareHostSettingsLabel: 'Hardware',
   hyperThreading: 'Hyper-threading (SMT)',
@@ -982,6 +993,9 @@ const messages = {
     'Are you sure you want to install {nPatches, number} patch{nPatches, plural, one {} other {es}}?',
   installPoolPatches: 'Install pool patches',
   confirmPoolPatch: 'Are you sure you want to install all the patches on this pool?',
+  rollingPoolUpdate: 'Rolling pool update',
+  rollingPoolUpdateMessage:
+    'Are you sure you want to start a rolling pool update? Running VMs will be migrated back and forth and this can take a while.',
   poolNeedsDefaultSr: 'The pool needs a default SR to install the patches.',
   vmsHaveCds: '{nVms, number} VM{nVms, plural, one {} other {s}} {nVms, plural, one {has} other {have}} CDs',
   ejectCds: 'Eject CDs',
@@ -1053,7 +1067,9 @@ const messages = {
   sshUserTooltip: 'Connect using external SSH tool as user…',
   sshUserLabel: 'SSH as…',
   sshUsernameLabel: 'SSH user name',
-  sshNeedClientTools: 'No IP address reported by client tools',
+  remoteNeedClientTools: 'No IP address reported by client tools',
+  rdp: 'RDP',
+  rdpRootTooltip: 'Connect using external RDP tool',
 
   // ----- VM container tab -----
   containerName: 'Name',
@@ -1180,6 +1196,7 @@ const messages = {
   deleteSnapshots: 'Remove selected snapshots',
   copySnapshot: 'Create a VM from this snapshot',
   exportSnapshot: 'Export this snapshot',
+  secureBoot: 'Secure boot',
   snapshotDate: 'Creation date',
   snapshotError: 'Snapshot error',
   snapshotName: 'Name',
@@ -1350,11 +1367,13 @@ const messages = {
     'Are you sure you want to delete {nBackups, number} backup{nBackups, plural, one {} other {s}}?',
   detachedBackups: 'Detached backups',
   detachedVmSnapshots: 'Detached VM snapshots',
+  duplicatedMacAddresses: 'Duplicated MAC addresses',
   missingJob: 'Missing job',
   missingVm: 'Missing VM',
   missingVmInJob: 'This VM does not belong to this job',
   missingSchedule: 'Missing schedule',
   noDetachedBackups: 'No backups',
+  noDuplicatedMacAddresses: 'No duplicated MAC addresses',
   reason: 'Reason',
   orphanedVdis: 'Orphan VDIs',
   orphanVdisTip: 'VDIs and VDI snapshots that are not attached to a VM',
@@ -1371,6 +1390,8 @@ const messages = {
   deleteOrphanedVdi: 'Delete orphaned snapshot VDI',
   deleteSelectedOrphanedVdis: 'Delete selected orphaned snapshot VDIs',
   vdisOnControlDomain: 'VDIs attached to Control Domain',
+  vifOnVmWithNetwork: 'VIF #{vifDevice, number} on {vm} ({network})',
+  vifs: 'VIFs',
   vmNameLabel: 'Name',
   vmNameDescription: 'Description',
   vmContainer: 'Resident on',
@@ -2345,6 +2366,7 @@ const messages = {
   httpProxyPlaceholder: 'protocol://username:password@address:port',
   proxyUpgradesError: 'Unable to check upgrades availability',
   proxyApplianceSettingsInfo: 'Leave the field empty and click on OK to remove the existing configuration',
+  proxyUpToDate: 'Your proxy is up-to-date',
 
   // ----- Utils -----
   secondsFormat: '{seconds, plural, one {# second} other {# seconds}}',

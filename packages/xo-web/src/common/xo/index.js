@@ -777,19 +777,31 @@ export const stopHosts = hosts => {
   }).then(() => Promise.all(map(hosts, host => _call('host.stop', { id: resolveId(host) }))), noop)
 }
 
-export const enableHost = host => _call('host.enable', { id: resolveId(host) })
-
-export const disableHost = host => _call('host.disable', { id: resolveId(host) })
+export const toggleMaintenanceMode = async host => {
+  if (host.enabled) {
+    try {
+      await confirm({
+        title: _('maintenanceHostModalTitle'),
+        body: _('maintenanceHostModalMessage'),
+      })
+    } catch (error) {
+      return
+    }
+  }
+  return _call('host.setMaintenanceMode', { id: resolveId(host), maintenance: host.enabled })
+}
 
 export const getHostMissingPatches = async host => {
   const hostId = resolveId(host)
+  host = getObject(store.getState(), hostId)
+
+  if (host.power_state !== 'Running') {
+    return []
+  }
   if (host.productBrand !== 'XCP-ng') {
     const patches = await _call('pool.listMissingPatches', { host: hostId })
     // Hide paid patches to XS-free users
     return host.license_params.sku_type !== 'free' ? patches : filter(patches, { paid: false })
-  }
-  if (host.power_state !== 'Running') {
-    return []
   }
   try {
     return await _call('pool.listMissingPatches', { host: hostId })
@@ -864,6 +876,16 @@ export const installAllPatchesOnPool = ({ pool }) => {
     noop
   )
 }
+
+export const rollingPoolUpdate = poolId =>
+  confirm({
+    body: _('rollingPoolUpdateMessage'),
+    title: _('rollingPoolUpdate'),
+    icon: 'pool-rolling-update',
+  }).then(
+    () => _call('pool.rollingUpdate', { pool: poolId })::tap(() => subscribeHostMissingPatches.forceRefresh()),
+    noop
+  )
 
 export const installSupplementalPack = (host, file) => {
   info(_('supplementalPackInstallStartedTitle'), _('supplementalPackInstallStartedMessage'))
@@ -2247,12 +2269,6 @@ export const probeSrHbaExists = (host, scsiId) => _call('sr.probeHbaExists', { h
 
 export const probeZfs = host => _call('sr.probeZfs', { host: resolveId(host) })
 
-export const reattachSr = (host, uuid, nameLabel, nameDescription, type) =>
-  _call('sr.reattach', { host, uuid, nameLabel, nameDescription, type })
-
-export const reattachSrIso = (host, uuid, nameLabel, nameDescription, type) =>
-  _call('sr.reattachIso', { host, uuid, nameLabel, nameDescription, type })
-
 export const createSrNfs = (
   host,
   nameLabel,
@@ -2260,11 +2276,13 @@ export const createSrNfs = (
   server,
   serverPath,
   nfsVersion = undefined,
-  nfsOptions
+  nfsOptions,
+  srUuid
 ) => {
   const params = { host, nameLabel, nameDescription, server, serverPath }
   nfsVersion && (params.nfsVersion = nfsVersion)
   nfsOptions && (params.nfsOptions = nfsOptions)
+  srUuid && (params.srUuid = srUuid)
   return _call('sr.createNfs', params)
 }
 
@@ -2277,22 +2295,37 @@ export const createSrIscsi = (
   scsiId,
   port = undefined,
   chapUser = undefined,
-  chapPassword = undefined
+  chapPassword = undefined,
+  srUuid
 ) => {
   const params = { host, nameLabel, nameDescription, target, targetIqn, scsiId }
   port && (params.port = port)
   chapUser && (params.chapUser = chapUser)
   chapPassword && (params.chapPassword = chapPassword)
+  srUuid && (params.srUuid = srUuid)
   return _call('sr.createIscsi', params)
 }
 
-export const createSrHba = (host, nameLabel, nameDescription, scsiId) =>
-  _call('sr.createHba', { host, nameLabel, nameDescription, scsiId })
+export const createSrHba = (host, nameLabel, nameDescription, scsiId, srUuid) => {
+  const params = { host, nameLabel, nameDescription, scsiId }
+  srUuid && (params.srUuid = srUuid)
+  return _call('sr.createHba', params)
+}
 
-export const createSrIso = (host, nameLabel, nameDescription, path, type, user = undefined, password = undefined) => {
-  const params = { host, nameLabel, nameDescription, path, type }
+export const createSrIso = (
+  host,
+  nameLabel,
+  nameDescription,
+  path,
+  type,
+  user = undefined,
+  password = undefined,
+  srUuid
+) => {
+  const params = { host, nameLabel, nameDescription, path, type, srUuid }
   user && (params.user = user)
   password && (params.password = password)
+  srUuid && (params.srUuid = srUuid)
   return _call('sr.createIso', params)
 }
 

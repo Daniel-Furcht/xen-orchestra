@@ -7,12 +7,14 @@ export async function set({
 
   name_description: nameDescription,
   name_label: nameLabel,
+  migrationNetwork,
 }) {
   pool = this.getXapiObject(pool)
 
   await Promise.all([
     nameDescription !== undefined && pool.set_name_description(nameDescription),
     nameLabel !== undefined && pool.set_name_label(nameLabel),
+    migrationNetwork !== undefined && pool.update_other_config('xo:migrationNetwork', migrationNetwork),
   ])
 }
 
@@ -26,6 +28,10 @@ set.params = {
   },
   name_description: {
     type: 'string',
+    optional: true,
+  },
+  migrationNetwork: {
+    type: ['string', 'null'],
     optional: true,
   },
 }
@@ -108,6 +114,20 @@ installPatches.resolve = {
 }
 
 installPatches.description = 'Install patches on hosts'
+
+// -------------------------------------------------------------------
+
+export async function rollingUpdate({ pool }) {
+  await this.getXapi(pool).rollingPoolUpdate()
+}
+
+rollingUpdate.params = {
+  pool: { type: 'string' },
+}
+
+rollingUpdate.resolve = {
+  pool: ['pool', 'pool', 'administrate'],
+}
 
 // -------------------------------------------------------------------
 

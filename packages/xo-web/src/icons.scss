@@ -634,6 +634,13 @@
     }
   }
 
+  &-pool {
+    &-rolling-update {
+      @extend .fa;
+      @extend .fa-angle-double-down;
+    }
+  }
+
   &-vif {
     &-disable {
       @extend .fa;
@@ -734,6 +741,10 @@
   &-remove {
     @extend .fa;
     @extend .fa-times;
+  }
+  &-rdp {
+    @extend .fa;
+    @extend .fa-exchange;
   }
   &-minus {
     @extend .fa;

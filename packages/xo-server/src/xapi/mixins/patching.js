@@ -2,13 +2,14 @@ import createLogger from '@xen-orchestra/log'
 import deferrable from 'golike-defer'
 import unzip from 'unzipper'
 import { decorateWith } from '@vates/decorate-with'
-import { filter, find, pickBy, some } from 'lodash'
+import { filter, find, groupBy, mapValues, pickBy, some } from 'lodash'
+import { timeout } from 'promise-toolbox'
 
 import ensureArray from '../../_ensureArray'
 import { debounceWithKey } from '../../_pDebounceWithKey'
 import { forEach, mapFilter, mapToArray, parseXml } from '../../utils'
 
-import { extractOpaqueRef, useUpdateSystem } from '../utils'
+import { extractOpaqueRef, parseDateTime, useUpdateSystem } from '../utils'
 
 // TOC -------------------------------------------------------------------------
 
@@ -150,7 +151,13 @@ export default {
   // list all yum updates available for a XCP-ng host
   // (hostObject) → { uuid: patchObject }
   async _listXcpUpdates(host) {
-    return JSON.parse(await this.call('host.call_plugin', host.$ref, 'updater.py', 'check_update', {}))
+    const result = JSON.parse(await this.call('host.call_plugin', host.$ref, 'updater.py', 'check_update', {}))
+
+    if (result.error != null) {
+      throw new Error(result.error)
+    }
+
+    return result
   },
 
   // list all patches provided by Citrix for this host version regardless
@@ -305,11 +312,12 @@ export default {
     // https://github.com/vatesfr/xen-orchestra/issues/4468
     hosts = hosts.sort(({ $ref }) => ($ref === this.pool.master ? -1 : 1))
     for (const host of hosts) {
-      const update = await this.call('host.call_plugin', host.$ref, 'updater.py', 'update', {})
+      const result = JSON.parse(await this.call('host.call_plugin', host.$ref, 'updater.py', 'update', {}))
 
-      if (JSON.parse(update).exit !== 0) {
-        throw new Error('Update install failed')
+      if (result.exit !== 0) {
+        throw new Error(result.stderr)
       } else {
+        log.debug(result.stdout)
         await host.update_other_config('rpm_patch_installation_time', String(Date.now() / 1000))
       }
     }
@@ -436,7 +444,7 @@ export default {
   //
   // XS pool-wide optimization only works when no hosts are specified
   // it may install more patches that specified if some of them require other patches
-  async installPatches({ patches, hosts }) {
+  async installPatches({ patches, hosts } = {}) {
     // XCP
     if (_isXcp(this.pool.$master)) {
       return this._xcpUpdate(hosts)
@@ -463,5 +471,101 @@ export default {
     // sort patches
     // host-by-host install
     throw new Error('non pool-wide install not implemented')
+  },
+
+  async rollingPoolUpdate() {
+    const hosts = filter(this.objects.all, { $type: 'host' })
+    await Promise.all(hosts.map(host => host.$call('assert_can_evacuate')))
+
+    log.debug('Install patches')
+    await this.installPatches()
+
+    // Remember on which hosts the running VMs are
+    const vmsByHost = mapValues(
+      groupBy(
+        filter(this.objects.all, {
+          $type: 'VM',
+          power_state: 'Running',
+          is_control_domain: false,
+        }),
+        vm => {
+          const hostId = vm.$resident_on?.$id
+
+          if (hostId === undefined) {
+            throw new Error('Could not find host of all running VMs')
+          }
+
+          return hostId
+        }
+      ),
+      vms => vms.map(vm => vm.$id)
+    )
+
+    // Put master in first position to restart it first
+    const indexOfMaster = hosts.findIndex(host => host.$ref === this.pool.master)
+    if (indexOfMaster === -1) {
+      throw new Error('Could not find pool master')
+    }
+    ;[hosts[0], hosts[indexOfMaster]] = [hosts[indexOfMaster], hosts[0]]
+
+    // Restart all the hosts one by one
+    for (const host of hosts) {
+      const hostId = host.uuid
+      // This is an old metrics reference from before the pool master restart.
+      // The references don't seem to change but it's not guaranteed.
+      const metricsRef = host.metrics
+
+      await this.barrier(metricsRef)
+      await this._waitObjectState(metricsRef, metrics => metrics.live)
+      const rebootTime = parseDateTime(await this.call('host.get_servertime', host.$ref))
+
+      log.debug(`Evacuate and restart host ${hostId}`)
+      await this.rebootHost(hostId)
+
+      log.debug(`Wait for host ${hostId} to be up`)
+      await timeout.call(
+        (async () => {
+          await this._waitObjectState(
+            hostId,
+            host => host.enabled && rebootTime < host.other_config.agent_start_time * 1e3
+          )
+          await this._waitObjectState(metricsRef, metrics => metrics.live)
+        })(),
+        this._restartHostTimeout,
+        new Error(`Host ${hostId} took too long to restart`)
+      )
+      log.debug(`Host ${hostId} is up`)
+    }
+
+    log.debug('Migrate VMs back to where they were')
+
+    // Start with the last host since it's the emptiest one after the rolling
+    // update
+    ;[hosts[0], hosts[hosts.length - 1]] = [hosts[hosts.length - 1], hosts[0]]
+
+    let error
+    for (const host of hosts) {
+      const hostId = host.uuid
+      const vmIds = vmsByHost[hostId]
+
+      if (vmIds === undefined) {
+        continue
+      }
+
+      for (const vmId of vmIds) {
+        try {
+          await this.migrateVm(vmId, this, hostId)
+        } catch (err) {
+          log.error(err)
+          if (error === undefined) {
+            error = err
+          }
+        }
+      }
+    }
+
+    if (error !== undefined) {
+      throw error
+    }
   },
 }
